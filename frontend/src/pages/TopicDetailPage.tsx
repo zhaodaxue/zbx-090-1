@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api';
 import {
   UserInfo, TopicDetail, VoteRecord, VoteStats, StageLog,
-  STAGE_LABEL, CHOICE_LABEL, RESULT_LABEL, TopicStage, VoteChoice
+  STAGE_LABEL, CHOICE_LABEL, RESULT_LABEL, TopicStage, VoteChoice, VoteResult
 } from '../types';
 
 interface Props {

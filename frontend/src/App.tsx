@@ -18,6 +18,7 @@ export default function App() {
   const [view, setView] = useState<View>({ name: 'login' });
   const [globalError, setGlobalError] = useState<string>('');
 
+  // 首次挂载/登录异常时：刷新用户 + 跳转默认首页
   const loadMe = useCallback(async () => {
     try {
       const me = await api.me();
@@ -33,7 +34,29 @@ export default function App() {
     }
   }, []);
 
+  // BUG⑤修复：只刷新用户状态（观察状态 / 连续未参与数），不改变当前视图
+  // 用于：从议题详情返回、管理员操作触发观察状态变更、投票完成后等
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await api.me();
+      setUser(me);
+    } catch (e: any) {
+      // token 失效时退回登录
+      api.clearToken();
+      setUser(null);
+      setView({ name: 'login' });
+    }
+  }, []);
+
   useEffect(() => { loadMe(); }, [loadMe]);
+
+  // BUG⑤修复：每次切回首页视图（从详情返回 / 首屏）时，主动刷新用户状态
+  useEffect(() => {
+    if (view.name === 'resident-home' || view.name === 'admin-home') {
+      if (user) refreshUser();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.name]);
 
   const handleLogin = async (username: string, password: string) => {
     setGlobalError('');
@@ -95,7 +118,7 @@ export default function App() {
             user={user!}
             from={view.from}
             onBack={goBack}
-            onChange={loadMe}
+            onChange={refreshUser}
           />
         )}
       </div>

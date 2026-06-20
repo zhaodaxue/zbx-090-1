@@ -1,0 +1,2 @@
+# Prisma Migrations 锁文件 - 请勿手动编辑
+provider = "postgresql"

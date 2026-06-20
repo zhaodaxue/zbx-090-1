@@ -157,21 +157,37 @@ router.post('/:id/advance', authMiddleware, adminMiddleware, validate(advanceSta
     updateData.discussionAt = now;
   } else if (nextStage === TopicStage.VOTING) {
     updateData.votingAt = now;
+
+    // ====== BUG④修复：观察状态在【第3次表决期开始时】即生效 ======
+    // 若某住户此前已经连续 2 次未参与（consecutiveMiss >= 2），本次表决期直接进入观察状态，禁止参与本次投票
+    const preObsResidents = await prisma.user.findMany({
+      where: { role: 'RESIDENT', status: 'NORMAL', consecutiveMiss: { gte: 2 } },
+    });
+    for (const r of preObsResidents) {
+      await prisma.user.update({
+        where: { id: r.id },
+        data: { status: 'OBSERVATION' },
+      });
+    }
   } else if (nextStage === TopicStage.ARCHIVED) {
     updateData.archivedAt = now;
     const { passed } = computeStats(votes, totalResidents);
     voteResult = passed ? 'PASSED' : 'REJECTED';
     updateData.voteResult = voteResult;
 
+    // 归档只更新 consecutiveMiss 计数，不自动修改 status
+    // 观察状态必须经物业人工解除；下一次进入表决期时会根据计数再触发
     const voterIds = new Set(votes.map((v) => v.userId));
     const allResidents = await prisma.user.findMany({ where: { role: 'RESIDENT' } });
     for (const r of allResidents) {
       const didVote = voterIds.has(r.id);
       const newMiss = didVote ? 0 : r.consecutiveMiss + 1;
-      const newStatus = newMiss >= 3 ? 'OBSERVATION' : 'NORMAL';
+      // status 保持不变（OBSERVATION 不自动解除，也不在此处从 NORMAL 升级到 OBSERVATION）
+      // 仅当本次参与了投票且原本为 NORMAL 时才清零是正常行为；
+      // 观察状态用户的计数仍然累计/清零，方便解除后计算基准，但 status 不受影响
       await prisma.user.update({
         where: { id: r.id },
-        data: { consecutiveMiss: newMiss, status: newStatus },
+        data: { consecutiveMiss: newMiss },
       });
     }
   }
