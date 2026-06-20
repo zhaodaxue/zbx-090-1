@@ -13,6 +13,28 @@ interface Props {
   onChange: () => void;
 }
 
+// 投票预览：投出一票后，同意率是多少（严格遵循服务端口径）
+// 弃权：有效票不变 → 同意率不变；同意或反对：有效票 +1，对应分子 +1
+function computePreviewAgreeRate(choice: VoteChoice, stats: VoteStats): number {
+  if (choice === 'ABSTAIN') {
+    // 弃权：有效票数量不变（弃权不计入），同意数也不变
+    if (stats.effective === 0) return -1;
+    return stats.agree / stats.effective;
+  }
+  const newAgree = stats.agree + (choice === 'AGREE' ? 1 : 0);
+  const newEffective = stats.effective + 1; // 同意或反对都计入有效票
+  if (newEffective === 0) return -1;
+  return newAgree / newEffective;
+}
+
+// 投票预览：投出一票后，是否同时满足双阈值
+function computePreviewPassed(choice: VoteChoice, stats: VoteStats): boolean {
+  const newParticipation = stats.participation + 1; // 无论如何都算参与
+  const participationRate = newParticipation / stats.totalResidents;
+  const agreeRate = computePreviewAgreeRate(choice, stats);
+  return participationRate >= 0.5 && agreeRate >= 0.667;
+}
+
 export default function TopicDetailPage({ topicId, user, from, onBack, onChange }: Props) {
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [votes, setVotes] = useState<VoteRecord[]>([]);
@@ -242,20 +264,114 @@ export default function TopicDetailPage({ topicId, user, from, onBack, onChange 
         <div className="card">
           <h2>📝 请投出您的一票</h2>
           <div className="alert alert-info" style={{ marginBottom: 16 }}>
-            每位住户对每个议题仅能投一次票，投票后不可更改
+            每位住户对每个议题仅能投一次票，投票后不可更改。点击选项可预览投票影响。
           </div>
           <div className="vote-options">
-            <div className={`vote-opt agree ${selectedChoice === 'AGREE' ? 'active' : ''}`} onClick={() => setSelectedChoice('AGREE')}>
+            <div
+              className={`vote-opt agree ${selectedChoice === 'AGREE' ? 'active' : ''}`}
+              onClick={() => setSelectedChoice('AGREE')}
+            >
               👍 同意
             </div>
-            <div className={`vote-opt disagree ${selectedChoice === 'DISAGREE' ? 'active' : ''}`} onClick={() => setSelectedChoice('DISAGREE')}>
+            <div
+              className={`vote-opt disagree ${selectedChoice === 'DISAGREE' ? 'active' : ''}`}
+              onClick={() => setSelectedChoice('DISAGREE')}
+            >
               👎 反对
             </div>
-            <div className={`vote-opt abstain ${selectedChoice === 'ABSTAIN' ? 'active' : ''}`} onClick={() => setSelectedChoice('ABSTAIN')}>
+            <div
+              className={`vote-opt abstain ${selectedChoice === 'ABSTAIN' ? 'active' : ''}`}
+              onClick={() => setSelectedChoice('ABSTAIN')}
+            >
               🤷 弃权
             </div>
           </div>
-          <button className="btn btn-success" onClick={doVote} disabled={!selectedChoice || voting}>
+
+          {/* 投票效果预览 */}
+          {selectedChoice && stats && (
+            <div className="vote-preview">
+              <div className="vote-preview-title">
+                🔍 若您投 <b>{CHOICE_LABEL[selectedChoice]}</b> 票，预计结果变化：
+              </div>
+              <div className="stats-grid" style={{ marginTop: 12 }}>
+                <div className="stat-box">
+                  <div className="num">
+                    {stats.participation + 1}
+                    <span className="delta-up">+1</span>
+                  </div>
+                  <div className="lbl">
+                    参与率：{(((stats.participation + 1) / stats.totalResidents) * 100).toFixed(1)}%
+                    <br />
+                    <span className={((stats.participation + 1) / stats.totalResidents) >= 0.5 ? 'text-pass' : 'text-fail'}>
+                      {((stats.participation + 1) / stats.totalResidents) >= 0.5 ? '✅ 达参与率阈值' : '❌ 未达参与率阈值 (≥50%)'}
+                    </span>
+                  </div>
+                </div>
+                <div className="stat-box agree">
+                  <div className="num">
+                    {stats.agree + (selectedChoice === 'AGREE' ? 1 : 0)}
+                    <span className={selectedChoice === 'AGREE' ? 'delta-up' : 'delta-flat'}>
+                      {selectedChoice === 'AGREE' ? '+1' : '+0'}
+                    </span>
+                  </div>
+                  <div className="lbl">同意票（含您的选择）</div>
+                </div>
+                <div className="stat-box disagree">
+                  <div className="num">
+                    {stats.disagree + (selectedChoice === 'DISAGREE' ? 1 : 0)}
+                    <span className={selectedChoice === 'DISAGREE' ? 'delta-up' : 'delta-flat'}>
+                      {selectedChoice === 'DISAGREE' ? '+1' : '+0'}
+                    </span>
+                  </div>
+                  <div className="lbl">反对票</div>
+                </div>
+                <div className="stat-box abstain">
+                  <div className="num">
+                    {stats.abstain + (selectedChoice === 'ABSTAIN' ? 1 : 0)}
+                    <span className={selectedChoice === 'ABSTAIN' ? 'delta-up' : 'delta-flat'}>
+                      {selectedChoice === 'ABSTAIN' ? '+1' : '+0'}
+                    </span>
+                  </div>
+                  <div className="lbl">弃权票（不计入有效票）</div>
+                </div>
+                <div className="stat-box">
+                  <div className="num">
+                    {stats.effective + (selectedChoice === 'AGREE' || selectedChoice === 'DISAGREE' ? 1 : 0)}
+                    <span className={selectedChoice === 'AGREE' || selectedChoice === 'DISAGREE' ? 'delta-up' : 'delta-flat'}>
+                      {selectedChoice === 'AGREE' || selectedChoice === 'DISAGREE' ? '+1' : '+0'}
+                    </span>
+                  </div>
+                  <div className="lbl">有效票（同意+反对）</div>
+                </div>
+                <div className={`stat-box ${computePreviewPassed(selectedChoice, stats) ? 'passed' : ''}`}>
+                  <div className="num">
+                    {computePreviewAgreeRate(selectedChoice, stats) >= 0
+                      ? `${(computePreviewAgreeRate(selectedChoice, stats) * 100).toFixed(1)}%`
+                      : '—'}
+                  </div>
+                  <div className="lbl">
+                    同意占有效票比例
+                    <br />
+                    <span className={computePreviewPassed(selectedChoice, stats) ? 'text-pass' : 'text-fail'}>
+                      {computePreviewPassed(selectedChoice, stats)
+                        ? '✅ 双阈值均达标（通过）'
+                        : '❌ 未同时满足双阈值'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 8 }}>
+                * 计算口径与实际表决一致：弃权票计入参与率分母，但不计入有效票的分子与分母。
+              </div>
+            </div>
+          )}
+
+          <button
+            className="btn btn-success"
+            onClick={doVote}
+            disabled={!selectedChoice || voting}
+            style={{ marginTop: selectedChoice ? 16 : 0 }}
+          >
             {voting ? '提交中...' : '确认提交'}
           </button>
         </div>

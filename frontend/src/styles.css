@@ -293,3 +293,47 @@ table tr:hover td { background: #fafafa; }
 .stage-step.active .dot { background: #1890ff; color: white; box-shadow: 0 0 0 4px #e6f4ff; }
 .stage-step .label { font-size: 12px; color: #8c8c8c; }
 .stage-step.active .label, .stage-step.done .label { color: #333; font-weight: 600; }
+
+/* 投票预览 */
+.vote-preview {
+  margin-top: 20px;
+  padding: 16px;
+  background: #fafcff;
+  border: 1px dashed #91d5ff;
+  border-radius: 6px;
+}
+.vote-preview-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #096dd9;
+}
+.vote-preview .num { position: relative; }
+.delta-up, .delta-flat {
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 6px;
+  vertical-align: middle;
+  padding: 0 6px;
+  border-radius: 10px;
+  line-height: 18px;
+  display: inline-block;
+}
+.delta-up { background: #f6ffed; color: #389e0d; }
+.delta-flat { background: #f0f0f0; color: #8c8c8c; }
+.text-pass { color: #389e0d; font-weight: 500; }
+.text-fail { color: #cf1322; font-weight: 500; }
+
+/* 待办汇总条 交互态 */
+.todo-summary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.todo-summary-observation:hover { transform: none; box-shadow: none; }
+.todo-summary-clear:hover { transform: none; box-shadow: none; }
+
+/* 风险提示动画 */
+@keyframes pulse-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.alert-error b { animation: pulse-warn 2s ease-in-out infinite; }
