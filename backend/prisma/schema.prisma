@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  RESIDENT
+}
+
+enum UserStatus {
+  NORMAL
+  OBSERVATION
+}
+
+enum TopicStage {
+  PUBLIC_NOTICE
+  DISCUSSION
+  VOTING
+  ARCHIVED
+}
+
+enum VoteChoice {
+  AGREE
+  DISAGREE
+  ABSTAIN
+}
+
+enum VoteResult {
+  PASSED
+  REJECTED
+  PENDING
+}
+
+model User {
+  id              String     @id @default(uuid())
+  username        String     @unique
+  passwordHash    String
+  realName        String
+  roomNumber      String
+  role            UserRole   @default(RESIDENT)
+  status          UserStatus @default(NORMAL)
+  consecutiveMiss Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  votes          Vote[]
+  stageLogs      StageLog[]
+  createdTopics  Topic[]    @relation("TopicCreator")
+}
+
+model Topic {
+  id            String      @id @default(uuid())
+  title         String
+  description   String      @db.Text
+  stage         TopicStage  @default(PUBLIC_NOTICE)
+  voteResult    VoteResult  @default(PENDING)
+  publicNoticeAt DateTime   @default(now())
+  discussionAt  DateTime?
+  votingAt      DateTime?
+  archivedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  creatorId String
+  creator   User       @relation("TopicCreator", fields: [creatorId], references: [id])
+
+  votes     Vote[]
+  stageLogs StageLog[]
+}
+
+model Vote {
+  id        String    @id @default(uuid())
+  choice    VoteChoice
+  createdAt DateTime  @default(now())
+
+  userId  String
+  topicId String
+  user    User    @relation(fields: [userId], references: [id])
+  topic   Topic   @relation(fields: [topicId], references: [id])
+
+  @@unique([userId, topicId])
+}
+
+model StageLog {
+  id          String     @id @default(uuid())
+  fromStage   TopicStage?
+  toStage     TopicStage
+  remark      String?
+  createdAt   DateTime   @default(now())
+
+  operatorId String
+  topicId    String
+  operator   User     @relation(fields: [operatorId], references: [id])
+  topic      Topic    @relation(fields: [topicId], references: [id])
+}
